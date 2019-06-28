@@ -8,6 +8,7 @@ par = {
 	'batch_size'			: 512,
 	'iterations'			: 1000,
 	'learning_rate'			: 2.5e-3,
+	'activity_cost'			: 1e-3,
 
 	'use_stp'				: True,
 	'EI_prop'				: 0.8,
@@ -19,8 +20,8 @@ par = {
 	'num_receptive_fields'	: 1,
 	'num_rules'				: 1,
 
-	'noise_in'				: 0.,
-	'noise_rnn'				: 0.,
+	'noise_in'				: 0.5,
+	'noise_rnn'				: 0.1,
 	'tau_hidden'			: 100,
 	'tau_fast'				: 200,
 	'tau_slow'				: 1500,
@@ -55,32 +56,38 @@ def variable_initialization():
 
 def update_dependencies():
 
+	# Determine task-specific parameters
 	if par['task'] == 'dmc':
 		par['n_output'] = 3
 
+	# Calculate total number of input neurons
 	par['n_input'] = par['num_motion_tuned'] + par['num_fix_tuned'] + par['num_rule_tuned']
 
+	# Create initial variable states
 	variable_initialization()
 
+	# Trial length aggregation
 	par['trial_length'] = par['dead_time'] + par['fix_time'] \
 		+ par['sample_time'] + par['delay_time'] + par['test_time']
 	par['num_time_steps'] = par['trial_length'] // par['dt']
 
+	# Excitatory/Inhibitory setup
 	par['n_exc'] = int(par['n_hidden']*par['EI_prop'])
 	par['EI_vector'] = np.ones(par['n_hidden'], dtype=np.float32)
 	par['EI_vector'][par['n_exc']:] *= -1
 	par['EI_matrix'] = np.diag(par['EI_vector']).astype(np.float32)
 
+	# Timing and time constants
 	par['alpha_neuron'] = par['dt']/par['tau_hidden']
 	par['dt_sec'] = par['dt']/1000
 
+	### Synaptic plasticity setup
 	par['alpha_stf'] = np.ones([1,par['n_hidden']], dtype=np.float32)
 	par['alpha_std'] = np.ones([1,par['n_hidden']], dtype=np.float32)
 	par['U']         = np.ones([1,par['n_hidden']], dtype=np.float32)
 
 	par['syn_x_init'] = np.zeros([par['batch_size'],par['n_hidden']], dtype=np.float32)
 	par['syn_u_init'] = np.zeros([par['batch_size'],par['n_hidden']], dtype=np.float32)
-
 
 	for i in range(0,par['n_hidden'],2):
 		par['alpha_stf'][:,i] = par['dt']/par['tau_slow']
